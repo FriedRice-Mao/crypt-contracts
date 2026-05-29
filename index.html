@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="均价计算器">
+  <meta name="theme-color" content="#0f172a">
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="icon.svg">
+  <title>均价计算器</title>
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.1/dist/cdn.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0f172a;
+      --surface: #1e293b;
+      --surface2: #334155;
+      --accent: #38bdf8;
+      --accent2: #818cf8;
+      --text: #f1f5f9;
+      --muted: #94a3b8;
+      --error: #f87171;
+      --border: #334155;
+      --radius: 14px;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      min-height: 100dvh;
+      padding-top: env(safe-area-inset-top);
+      padding-bottom: calc(env(safe-area-inset-bottom) + 16px);
+    }
+
+    .app {
+      max-width: 480px;
+      margin: 0 auto;
+      padding: 0 16px;
+    }
+
+    header {
+      text-align: center;
+      padding: 28px 0 20px;
+    }
+
+    header h1 {
+      font-size: 20px;
+      font-weight: 700;
+    }
+
+    header p {
+      font-size: 13px;
+      color: var(--muted);
+      margin-top: 4px;
+    }
+
+    .card {
+      background: var(--surface);
+      border-radius: var(--radius);
+      padding: 16px;
+      margin-bottom: 10px;
+      border: 1px solid var(--border);
+    }
+
+    .card-label {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--muted);
+      margin-bottom: 14px;
+    }
+
+    .field {
+      margin-bottom: 12px;
+    }
+
+    .field:last-child { margin-bottom: 0; }
+
+    .field label {
+      display: block;
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 5px;
+    }
+
+    .field input {
+      width: 100%;
+      background: var(--bg);
+      border: 1.5px solid var(--border);
+      border-radius: 9px;
+      color: var(--text);
+      font-size: 18px;
+      font-variant-numeric: tabular-nums;
+      padding: 10px 12px;
+      outline: none;
+      transition: border-color 0.15s;
+      -webkit-appearance: none;
+      appearance: none;
+    }
+
+    .field input:focus { border-color: var(--accent); }
+
+    .field input.computed {
+      border-color: var(--accent2);
+      color: var(--accent2);
+    }
+
+    .field input::placeholder { color: var(--surface2); }
+
+    .linked {
+      display: grid;
+      grid-template-columns: 1fr 28px 1fr;
+      gap: 6px;
+      align-items: start;
+    }
+
+    .link-sep {
+      text-align: center;
+      color: var(--muted);
+      font-size: 18px;
+      padding-top: 26px;
+      user-select: none;
+    }
+
+    .error {
+      color: var(--error);
+      font-size: 12px;
+      margin-top: 10px;
+      text-align: center;
+      min-height: 16px;
+    }
+
+    .reset {
+      display: block;
+      width: 100%;
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--muted);
+      font-size: 14px;
+      padding: 13px;
+      cursor: pointer;
+      margin-top: 4px;
+      transition: background 0.15s, color 0.15s;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .reset:active {
+      background: var(--surface);
+      color: var(--text);
+    }
+  </style>
+</head>
+<body>
+  <div class="app" x-data="calc()" x-init="load()">
+    <header>
+      <h1>均价计算器</h1>
+      <p>修改加仓价格或数量，另一项自动联动</p>
+    </header>
+
+    <div class="card">
+      <div class="card-label">持仓信息</div>
+
+      <div class="field">
+        <label>Trading Pair（可选）</label>
+        <input type="text" x-model="pair" @input="save()"
+               placeholder="ETH/USDT" autocomplete="off" autocorrect="off" spellcheck="false">
+      </div>
+
+      <div class="field">
+        <label>Position Size（持仓数量）</label>
+        <input type="number" inputmode="decimal" x-model="positionSize"
+               @input="recompute()" placeholder="0.00">
+      </div>
+
+      <div class="field">
+        <label>Entry Price（开仓价格）</label>
+        <input type="number" inputmode="decimal" x-model="entryPrice"
+               @input="recompute()" placeholder="0.00">
+      </div>
+
+      <div class="field">
+        <label>Target Average Price（目标均价）</label>
+        <input type="number" inputmode="decimal" x-model="targetAvgPrice"
+               @input="recompute()" placeholder="0.00">
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-label">加仓计算</div>
+
+      <div class="linked">
+        <div class="field">
+          <label>Add Price（加仓价格）</label>
+          <input type="number" inputmode="decimal"
+                 x-model="addPrice"
+                 @input="onAddPriceChange()"
+                 :class="{ computed: lastEdited === 'size' }"
+                 placeholder="0.00">
+        </div>
+
+        <div class="link-sep">⇌</div>
+
+        <div class="field">
+          <label>Add Size（加仓数量）</label>
+          <input type="number" inputmode="decimal"
+                 x-model="addSize"
+                 @input="onAddSizeChange()"
+                 :class="{ computed: lastEdited === 'price' }"
+                 placeholder="0.00">
+        </div>
+      </div>
+
+      <div class="error" x-text="error"></div>
+    </div>
+
+    <button class="reset" @click="reset()">重置</button>
+  </div>
+
+  <script>
+    function calc() {
+      return {
+        pair: '',
+        positionSize: '',
+        entryPrice: '',
+        targetAvgPrice: '',
+        addPrice: '',
+        addSize: '',
+        error: '',
+        lastEdited: null,
+
+        base() {
+          const s = parseFloat(this.positionSize);
+          const ep = parseFloat(this.entryPrice);
+          const tap = parseFloat(this.targetAvgPrice);
+          if ([s, ep, tap].some(v => isNaN(v) || v === '')) return null;
+          return { s, ep, tap };
+        },
+
+        onAddPriceChange() {
+          this.lastEdited = 'price';
+          this.error = '';
+          const b = this.base();
+          if (!b || this.addPrice === '') { this.addSize = ''; this.save(); return; }
+          const ap = parseFloat(this.addPrice);
+          if (isNaN(ap)) { this.addSize = ''; return; }
+          const denom = ap - b.tap;
+          if (denom === 0) { this.error = 'Add Price 不能等于 Target Average Price'; this.addSize = ''; return; }
+          const size = (b.s * (b.tap - b.ep)) / denom;
+          if (!isFinite(size) || size < 0) { this.error = '当前参数组合无效，请检查方向'; this.addSize = ''; return; }
+          this.addSize = parseFloat(size.toFixed(6));
+          this.save();
+        },
+
+        onAddSizeChange() {
+          this.lastEdited = 'size';
+          this.error = '';
+          const b = this.base();
+          if (!b || this.addSize === '') { this.addPrice = ''; this.save(); return; }
+          const as_ = parseFloat(this.addSize);
+          if (isNaN(as_) || as_ <= 0) { this.error = 'Add Size 必须大于 0'; this.addPrice = ''; return; }
+          const price = (b.tap * (b.s + as_) - b.s * b.ep) / as_;
+          if (!isFinite(price) || price < 0) { this.error = '当前参数组合无效，请检查方向'; this.addPrice = ''; return; }
+          this.addPrice = parseFloat(price.toFixed(6));
+          this.save();
+        },
+
+        recompute() {
+          if (this.lastEdited === 'price') this.onAddPriceChange();
+          else if (this.lastEdited === 'size') this.onAddSizeChange();
+          else this.save();
+        },
+
+        save() {
+          localStorage.setItem('crypt-calc', JSON.stringify({
+            pair: this.pair,
+            positionSize: this.positionSize,
+            entryPrice: this.entryPrice,
+            targetAvgPrice: this.targetAvgPrice,
+            addPrice: this.addPrice,
+            addSize: this.addSize,
+            lastEdited: this.lastEdited,
+          }));
+        },
+
+        load() {
+          try {
+            const raw = localStorage.getItem('crypt-calc');
+            if (raw) Object.assign(this, JSON.parse(raw));
+          } catch {}
+        },
+
+        reset() {
+          Object.assign(this, {
+            pair: '', positionSize: '', entryPrice: '', targetAvgPrice: '',
+            addPrice: '', addSize: '', error: '', lastEdited: null,
+          });
+          localStorage.removeItem('crypt-calc');
+        },
+      };
+    }
+
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('sw.js');
+    }
+  </script>
+</body>
+</html>

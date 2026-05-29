@@ -1,0 +1,18 @@
+{
+  "name": "均价计算器",
+  "short_name": "均价",
+  "description": "加仓价格与数量双向联动计算器",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#0f172a",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
